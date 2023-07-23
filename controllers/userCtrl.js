@@ -3,6 +3,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const doctorModel = require("../models/doctorModel");
 
+const AppointmentModel = require("../models/AppointmentModel");
+const moment = require("moment");
+
 exports.registerCtrl = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -165,6 +168,113 @@ exports.deleteNotifictaion = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error in deleting Messgae",
+      error,
+    });
+  }
+};
+
+exports.getalldoctor = async (req, res) => {
+  try {
+    const doctors = await doctorModel.find({ status: "approved" });
+    res.status(200).json({
+      success: true,
+      message: "Docotor Data Has been Fetch sucessfully",
+      data: doctors,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(404).json({
+      success: false,
+      message: "Something went wrong in fetching Doctor list",
+      error,
+    });
+  }
+};
+
+exports.bookappointmentsController = async (req, res) => {
+  try {
+    req.body.date = moment(req.body.date, "DD-MM-YYYY").toISOString();
+    req.body.time = moment(req.body.time, "HH:mm").toISOString();
+
+    req.body.status = "pending";
+    const newAppointment = new AppointmentModel(req.body);
+    await newAppointment.save();
+
+    const user = await userModel.findOne({ _id: req.body.doctorInfo.userId });
+    user.notification.push({
+      type: "New Appoitments Request",
+      message: `A new Appointmest request  from  ${req.body.userInfo.name}`,
+      onclickPath: "/user/appointments",
+    });
+    await user.save();
+    res.status(200).json({
+      success: true,
+      message: " Appointments Succesfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(404).json({
+      success: false,
+      message: "Something Error",
+      error,
+    });
+  }
+};
+
+exports.bookaavabilityctrl = async (req, res) => {
+  try {
+    const date = moment(req.body.date, "DD-MM-YYYY").toISOString();
+    const fromTime = moment(req.body.time, "HH:mm")
+      .subtract(1, "hours")
+      .toISOString();
+    const toTime = moment(req.body.time, "HH:mm").add(1, "hours").toISOString();
+
+    const appointments = await AppointmentModel.find({
+      doctorId,
+      date,
+      time: {
+        $gte: fromTime,
+        $lte: toTime,
+      },
+    });
+
+    if (appointments.length > 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Appointemets Not Avaliable at this time",
+      });
+    } else {
+      return res.status(200).json({
+        success: true,
+        message: "Appointmenst  Avaliable",
+      });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server Error",
+      error,
+    });
+  }
+};
+
+exports.appointmentsCtrl = async (req, res) => {
+  try {
+    const appointments = await AppointmentModel.find({
+      userId: req.body.userId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "The Appointments Fetch Successfully",
+      data: appointments,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
       error,
     });
   }
